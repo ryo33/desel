@@ -1,0 +1,10 @@
+os:
+  - linux
+  - osx
+sudo: false
+before_install: script/bootstrap
+language: go
+go: 1.5.2
+script: script/test
+notifications:
+  email: false
