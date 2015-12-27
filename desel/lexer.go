@@ -50,7 +50,7 @@ var (
 	slice    func(int, int) []rune
 )
 
-func tokenize(str []rune) []token {
+func Tokenize(str []rune) []token {
 	position = 0
 	tokens = []token{}
 	length = len(str)

@@ -138,7 +138,7 @@ func TestTokenizer(t *testing.T) {
 
 func testTokenizer(t *testing.T, test_cases []lexeme_test_case, message string) {
 	for _, test_case := range test_cases {
-		tokens := tokenize([]rune(test_case.str))
+		tokens := Tokenize([]rune(test_case.str))
 		failed := func() {
 			t.Errorf("failed to tokenize %s: \"%s\"", message, test_case.str)
 			for _, token := range tokens {
