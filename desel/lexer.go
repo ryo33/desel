@@ -1,22 +1,22 @@
 package desel
 
-type token struct {
+type Token struct {
 	category int
 	lexeme   []rune
 	position int
 }
 
 const (
-	t_comment     = iota
-	t_whitespaces = iota
-	t_pre_set     = iota
-	t_pre_element = iota
-	t_label       = iota
-	t_lparen      = iota
-	t_rparen      = iota
-	t_and         = iota
-	t_minus       = iota
-	t_not         = iota
+	T_comment     = iota
+	T_whitespaces = iota
+	T_pre_set     = iota
+	T_pre_element = iota
+	T_label       = iota
+	T_lparen      = iota
+	T_rparen      = iota
+	T_and         = iota
+	T_minus       = iota
+	T_not         = iota
 )
 
 const (
@@ -34,25 +34,25 @@ const (
 	d_quote     = '"'
 )
 
-func append_pre_set()     { append_token(t_pre_set, []rune{pre_set}, position); position++ }
-func append_pre_element() { append_token(t_pre_element, []rune{pre_element}, position); position++ }
-func append_lparen()      { append_token(t_lparen, []rune{lparen}, position); position++ }
-func append_rparen()      { append_token(t_rparen, []rune{rparen}, position); position++ }
-func append_and()         { append_token(t_and, []rune{and}, position); position++ }
-func append_minus()       { append_token(t_minus, []rune{minus}, position); position++ }
-func append_not()         { append_token(t_not, []rune{not}, position); position++ }
+func append_pre_set()     { append_token(T_pre_set, []rune{pre_set}, position); position++ }
+func append_pre_element() { append_token(T_pre_element, []rune{pre_element}, position); position++ }
+func append_lparen()      { append_token(T_lparen, []rune{lparen}, position); position++ }
+func append_rparen()      { append_token(T_rparen, []rune{rparen}, position); position++ }
+func append_and()         { append_token(T_and, []rune{and}, position); position++ }
+func append_minus()       { append_token(T_minus, []rune{minus}, position); position++ }
+func append_not()         { append_token(T_not, []rune{not}, position); position++ }
 
 var (
 	position int // current position
-	tokens   []token
+	tokens   []Token
 	length   int
 	get_next func() rune
 	slice    func(int, int) []rune
 )
 
-func Tokenize(str []rune) []token {
+func Tokenize(str []rune) []Token {
 	position = 0
-	tokens = []token{}
+	tokens = []Token{}
 	length = len(str)
 	get_next = func() rune { return str[position] }
 	slice = func(start int, end int) []rune {
@@ -67,13 +67,13 @@ func Tokenize(str []rune) []token {
 	case pre_element:
 		append_pre_element()
 	default:
-		append_token(t_comment, str, position)
+		append_token(T_comment, str, position)
 		return tokens
 	}
 	for position < length {
 		switch get_next() {
 		case pre_comment:
-			append_token(t_comment, str[position:length], position)
+			append_token(T_comment, str[position:length], position)
 			return tokens
 		case pre_set:
 			append_pre_set()
@@ -106,7 +106,7 @@ func append_whitespaces() {
 			break
 		}
 	}
-	append_token(t_whitespaces, slice(start, position), start)
+	append_token(T_whitespaces, slice(start, position), start)
 }
 
 func append_label() {
@@ -132,7 +132,7 @@ func append_label() {
 		})
 		// position ++ is ununnecessary
 	}
-	append_token(t_label, slice(start, position), start)
+	append_token(T_label, slice(start, position), start)
 }
 
 func consume_until(until func(rune) bool) {
@@ -141,5 +141,5 @@ func consume_until(until func(rune) bool) {
 }
 
 func append_token(category int, lexeme []rune, position int) {
-	tokens = append(tokens, token{category, lexeme, position})
+	tokens = append(tokens, Token{category, lexeme, position})
 }
