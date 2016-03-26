@@ -1,22 +1,28 @@
 package desel
 
+import (
+	"strings"
+)
+
 type Token struct {
 	category int
 	lexeme   []rune
 	position int
+	line     int
 }
 
 const (
-	T_comment     = iota
-	T_whitespaces = iota
-	T_pre_set     = iota
-	T_pre_element = iota
-	T_label       = iota
-	T_lparen      = iota
-	T_rparen      = iota
-	T_and         = iota
-	T_minus       = iota
-	T_not         = iota
+	T_comment = iota
+	T_whitespaces
+	T_pre_set
+	T_pre_element
+	T_label
+	T_lparen
+	T_rparen
+	T_and
+	T_minus
+	T_not
+	T_newline
 )
 
 const (
@@ -34,32 +40,49 @@ const (
 	d_quote     = '"'
 )
 
-func append_pre_set()     { append_token(T_pre_set, []rune{pre_set}, position); position++ }
-func append_pre_element() { append_token(T_pre_element, []rune{pre_element}, position); position++ }
-func append_lparen()      { append_token(T_lparen, []rune{lparen}, position); position++ }
-func append_rparen()      { append_token(T_rparen, []rune{rparen}, position); position++ }
-func append_and()         { append_token(T_and, []rune{and}, position); position++ }
-func append_minus()       { append_token(T_minus, []rune{minus}, position); position++ }
-func append_not()         { append_token(T_not, []rune{not}, position); position++ }
+func append_pre_set() { append_token(T_pre_set, []rune{pre_set}, position, line); position++ }
+func append_pre_element() {
+	append_token(T_pre_element, []rune{pre_element}, position, line)
+	position++
+}
+func append_lparen() { append_token(T_lparen, []rune{lparen}, position, line); position++ }
+func append_rparen() { append_token(T_rparen, []rune{rparen}, position, line); position++ }
+func append_and()    { append_token(T_and, []rune{and}, position, line); position++ }
+func append_minus()  { append_token(T_minus, []rune{minus}, position, line); position++ }
+func append_not()    { append_token(T_not, []rune{not}, position, line); position++ }
 
 var (
 	position int // current position
+	line     int // current line
 	tokens   []Token
 	length   int
 	get_next func() rune
 	slice    func(int, int) []rune
 )
 
-func Tokenize(str []rune) []Token {
-	position = 0
+func Tokenize(str string) []Token {
+	line = 0
 	tokens = []Token{}
+	lines := strings.Split(str, "\n")
+	for i, l := range lines {
+		line = i
+		if i != 0 {
+			append_token(T_newline, []rune{'\n'}, length, line-1) // length from TokenizeLine
+		}
+		TokenizeLine([]rune(l))
+	}
+	return tokens
+}
+
+func TokenizeLine(str []rune) {
+	position = 0
 	length = len(str)
 	get_next = func() rune { return str[position] }
 	slice = func(start int, end int) []rune {
 		return str[start:end]
 	}
 	if length == 0 {
-		return tokens
+		return
 	}
 	switch str[0] {
 	case pre_set:
@@ -67,14 +90,14 @@ func Tokenize(str []rune) []Token {
 	case pre_element:
 		append_pre_element()
 	default:
-		append_token(T_comment, str, position)
-		return tokens
+		append_token(T_comment, str, position, line)
+		return
 	}
 	for position < length {
 		switch get_next() {
 		case pre_comment:
-			append_token(T_comment, str[position:length], position)
-			return tokens
+			append_token(T_comment, str[position:length], position, line)
+			return
 		case pre_set:
 			append_pre_set()
 		case pre_element:
@@ -95,7 +118,6 @@ func Tokenize(str []rune) []Token {
 			append_label()
 		}
 	}
-	return tokens
 }
 
 func append_whitespaces() {
@@ -106,7 +128,7 @@ func append_whitespaces() {
 			break
 		}
 	}
-	append_token(T_whitespaces, slice(start, position), start)
+	append_token(T_whitespaces, slice(start, position), start, line)
 }
 
 func append_label() {
@@ -132,7 +154,7 @@ func append_label() {
 		})
 		// position ++ is ununnecessary
 	}
-	append_token(T_label, slice(start, position), start)
+	append_token(T_label, slice(start, position), start, line)
 }
 
 func consume_until(until func(rune) bool) {
@@ -140,6 +162,6 @@ func consume_until(until func(rune) bool) {
 	}
 }
 
-func append_token(category int, lexeme []rune, position int) {
-	tokens = append(tokens, Token{category, lexeme, position})
+func append_token(category int, lexeme []rune, position int, line int) {
+	tokens = append(tokens, Token{category, lexeme, position, line})
 }
