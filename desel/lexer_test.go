@@ -167,7 +167,7 @@ func testTokenizer(t *testing.T, test_cases []lexeme_test_case, message string) 
 		failed := func() {
 			t.Errorf("failed to tokenize %s: \"%s\"", message, test_case.str)
 			for _, token := range tokens {
-				t.Logf("%d `%s` %d %d", token.category, string(token.lexeme), token.position, token.line)
+				t.Logf("%d `%s` %d %d", token.category, string(token.lexeme), token.column, token.line)
 			}
 		}
 		if len(tokens) == len(test_case.tokens) {
@@ -177,7 +177,7 @@ func testTokenizer(t *testing.T, test_cases []lexeme_test_case, message string) 
 					fallthrough
 				case string(tokens[i].lexeme) != string(test_case.tokens[i].lexeme):
 					fallthrough
-				case tokens[i].position != test_case.tokens[i].position:
+				case tokens[i].column != test_case.tokens[i].column:
 					fallthrough
 				case tokens[i].line != test_case.tokens[i].line:
 					failed()
@@ -189,6 +189,6 @@ func testTokenizer(t *testing.T, test_cases []lexeme_test_case, message string) 
 	}
 }
 
-func newTestToken(category int, lexeme string, position int, line int) Token {
-	return Token{category, []rune(lexeme), position, line}
+func newTestToken(category int, lexeme string, column int, line int) Token {
+	return Token{category, []rune(lexeme), column, line}
 }

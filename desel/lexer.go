@@ -7,7 +7,7 @@ import (
 type Token struct {
 	category int
 	lexeme   []rune
-	position int
+	column   int
 	line     int
 }
 
@@ -40,19 +40,19 @@ const (
 	d_quote     = '"'
 )
 
-func append_pre_set() { append_token(T_pre_set, []rune{pre_set}, position, line); position++ }
+func append_pre_set() { append_token(T_pre_set, []rune{pre_set}, column, line); column++ }
 func append_pre_element() {
-	append_token(T_pre_element, []rune{pre_element}, position, line)
-	position++
+	append_token(T_pre_element, []rune{pre_element}, column, line)
+	column++
 }
-func append_lparen() { append_token(T_lparen, []rune{lparen}, position, line); position++ }
-func append_rparen() { append_token(T_rparen, []rune{rparen}, position, line); position++ }
-func append_and()    { append_token(T_and, []rune{and}, position, line); position++ }
-func append_minus()  { append_token(T_minus, []rune{minus}, position, line); position++ }
-func append_not()    { append_token(T_not, []rune{not}, position, line); position++ }
+func append_lparen() { append_token(T_lparen, []rune{lparen}, column, line); column++ }
+func append_rparen() { append_token(T_rparen, []rune{rparen}, column, line); column++ }
+func append_and()    { append_token(T_and, []rune{and}, column, line); column++ }
+func append_minus()  { append_token(T_minus, []rune{minus}, column, line); column++ }
+func append_not()    { append_token(T_not, []rune{not}, column, line); column++ }
 
 var (
-	position int // current position
+	column   int // current column
 	line     int // current line
 	tokens   []Token
 	length   int
@@ -75,9 +75,9 @@ func Tokenize(str string) []Token {
 }
 
 func TokenizeLine(str []rune) {
-	position = 0
+	column = 0
 	length = len(str)
-	get_next = func() rune { return str[position] }
+	get_next = func() rune { return str[column] }
 	slice = func(start int, end int) []rune {
 		return str[start:end]
 	}
@@ -90,13 +90,13 @@ func TokenizeLine(str []rune) {
 	case pre_element:
 		append_pre_element()
 	default:
-		append_token(T_comment, str, position, line)
+		append_token(T_comment, str, column, line)
 		return
 	}
-	for position < length {
+	for column < length {
 		switch get_next() {
 		case pre_comment:
-			append_token(T_comment, str[position:length], position, line)
+			append_token(T_comment, str[column:length], column, line)
 			return
 		case pre_set:
 			append_pre_set()
@@ -121,29 +121,29 @@ func TokenizeLine(str []rune) {
 }
 
 func append_whitespaces() {
-	start := position
-	position++
-	for ; position < length; position++ {
+	start := column
+	column++
+	for ; column < length; column++ {
 		if c := get_next(); c != tab && c != space {
 			break
 		}
 	}
-	append_token(T_whitespaces, slice(start, position), start, line)
+	append_token(T_whitespaces, slice(start, column), start, line)
 }
 
 func append_label() {
-	start := position
+	start := column
 	switch get_next() {
 	case s_quote:
-		position++
+		column++
 		consume_until(func(c rune) bool { return c != s_quote })
-		position++
+		column++
 	case d_quote:
-		position++
+		column++
 		consume_until(func(c rune) bool { return c != d_quote })
-		position++
+		column++
 	default:
-		position++
+		column++
 		consume_until(func(c rune) bool {
 			switch c {
 			case pre_comment, pre_set, pre_element, lparen, rparen, and, minus, not, tab, space:
@@ -152,16 +152,16 @@ func append_label() {
 				return true
 			}
 		})
-		// position ++ is ununnecessary
+		// column ++ is ununnecessary
 	}
-	append_token(T_label, slice(start, position), start, line)
+	append_token(T_label, slice(start, column), start, line)
 }
 
 func consume_until(until func(rune) bool) {
-	for ; position < length && until(get_next()); position++ {
+	for ; column < length && until(get_next()); column++ {
 	}
 }
 
-func append_token(category int, lexeme []rune, position int, line int) {
-	tokens = append(tokens, Token{category, lexeme, position, line})
+func append_token(category int, lexeme []rune, column int, line int) {
+	tokens = append(tokens, Token{category, lexeme, column, line})
 }
