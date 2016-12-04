@@ -1,31 +1,77 @@
 defmodule Desel.AST do
   defmodule Set do
-    defstruct token: nil, label: nil
+    defstruct label: nil
   end
   defmodule Element do
-    defstruct token: nil, label: nil
+    defstruct label: nil
   end
-  defmodule Not do
-    defstruct token: nil, target: nil
+  defmodule Expression do
+    defstruct operator: nil, operand: nil
   end
+  defmodule SetDefinition do
+    defstruct set: nil, items: []
+  end
+  defmodule ElementDefinition do
+    defstruct element: nil, items: []
+  end
+  defmodule SetsDefinition do
+    defstruct sets: []
+  end
+  defmodule ElementsDefinition do
+    defstruct elements: []
+  end
+  defmodule WithHomonymous do
+    defstruct target: nil
+  end
+  @operators [:not, :and, :or, :minus]
 
-  def set(token, label) do
+  def set(label) do
     %__MODULE__.Set{
-      token: token,
       label: label
     }
   end
 
-  def element(token, label) do
+  def element(label) do
     %__MODULE__.Element{
-      token: token,
       label: label
     }
   end
 
-  def not_node(token, target) do
-    %__MODULE__.Not{
-      token: token,
+  def expression(operator, operand) do
+    %__MODULE__.Expression{
+      operator: operator,
+      operand: operand
+    }
+  end
+
+  def set_definition(set, items) do
+    %__MODULE__.SetDefinition{
+      set: set,
+      items: items
+    }
+  end
+
+  def element_definition(element, items) do
+    %__MODULE__.ElementDefinition{
+      element: element,
+      items: items
+    }
+  end
+
+  def set_definition(sets) do
+    %__MODULE__.SetsDefinition{
+      sets: sets
+    }
+  end
+
+  def elements_definition(elements) do
+    %__MODULE__.ElementsDefinition{
+      elements: elements
+    }
+  end
+
+  def with_homonymous(target) do
+    %__MODULE__.WithHomonymous{
       target: target
     }
   end

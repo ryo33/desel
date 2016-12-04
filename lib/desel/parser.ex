@@ -1,166 +1,277 @@
 defmodule Desel.Parser do
-  use Parselix
-  use Parselix.Basic
+  import Parselix
+  import Parselix.Basic
 
   alias Desel.AST
 
   @whitespace_characters " " <> "　" <> "\t"
   @newline_characters "\n"
 
-  def not_token, do: [wss, char("!"), wss] |> sequence |> compress
-  def minus_token, do: [wss, char("-"), wss] |> sequence |> compress
-  def and_token, do: [wss, char("&"), wss] |> sequence |> compress
-  def prefix_of_set, do: char("%")
-  def prefix_of_element, do: char("@")
-  def prefix_of_inline_comment, do: char("#")
-  def prefix_of_comment, do: not_char("%@")
-  def ws, do: char(@whitespace_characters)
-  def not_ws, do: not_char(@whitespace_characters)
-  def wss, do: ws |> many |> compress
-  def not_wss, do: not_ws |> many |> compress
-  def wss1, do: ws |> many_1 |> compress
-  def not_wss1, do: not_ws |> many_1 |> compress
-  def option_not_wss, do: not_wss |> option
-  def option_not_wss1, do: not_wss1 |> option
-  def newline, do: char(@newline_characters)
-  def not_newline, do: not_char(@newline_characters)
-  def wss_newline, do: [wss, newline] |> sequence
-  def label_character, do: not_char(~s/!-&%@()#"'/ <> @whitespace_characters)
-  def label_characters, do: label_character |> many |> compress
-  def utf_characters, do: not_newline |> many |> compress
+  def parse(target) do
+    desel |> parse(target, position)
+  end
 
-  def label, do: [label_characters, wrapped_label] |> choice
-  def wrapped_label do
-    [[char(~s(")), label_characters, char(~s("))] |> sequence,
-     [char(~s(")), label_characters, char(~s("))] |> sequence]
+  parser :begin_token, do: [wss, char("("), wss] |> sequence |> concat
+  parser :end_token, do: [wss, char(")")] |> sequence |> concat
+  parser :not_token, do: [wss, char("!"), wss] |> sequence |> concat
+  parser :minus_token, do: [wss, char("-"), wss] |> sequence |> concat
+  parser :and_token, do: [wss, char("&"), wss] |> sequence |> concat
+  parser :prefix_of_set, do: char("%")
+  parser :prefix_of_element, do: char("@")
+  parser :prefix_of_inline_comment, do: char("#")
+  parser :prefix_of_comment, do: not_char("%@" <> @newline_characters)
+  parser :ws, do: char(@whitespace_characters)
+  parser :not_ws, do: not_char(@whitespace_characters)
+  parser :wss, do: ws |> many |> concat
+  parser :not_wss, do: not_ws |> many |> concat
+  parser :wss1, do: ws |> many_1 |> concat
+  parser :not_wss1, do: not_ws |> many_1 |> concat
+  parser :option_not_wss, do: not_wss |> option
+  parser :option_not_wss1, do: not_wss1 |> option
+  parser :newline, do: char(@newline_characters)
+  parser :not_newline, do: not_char(@newline_characters)
+  parser :wss_newline, do: [wss, newline] |> sequence
+  parser :label_character, do: not_char(~s/!-&%@()#"'/ <> @whitespace_characters <> @newline_characters)
+  parser :label_characters, do: label_character |> many_1 |> concat
+  parser :utf_characters, do: not_newline |> many_1 |> concat
+  parser :double_quote_characters, do: not_char(~s(") <> @newline_characters) |> many_1 |> concat
+  parser :single_quote_characters, do: not_char(~s(') <> @newline_characters) |> many_1 |> concat
+  parser :label, do: [label_characters, wrapped_label] |> choice
+
+  parser :wrapped_label do
+    [[char(~s(")), double_quote_characters, char(~s("))] |> sequence,
+     [char(~s(')), single_quote_characters, char(~s('))] |> sequence]
     |> choice
+    |> pick(1)
   end
-  def homonymous_set do
-    [wss, prefix_of_set, ws]
-    |> sequence |> (fn p -> map({p, fn _ -> "%" end}) end).()
-    |> option
-  end
-  def homonymous_element do
-    [wss, prefix_of_element, ws]
-    |> sequence |> (fn p -> map({p, fn _ -> "@" end}) end).()
-    |> option
-  end
-  def set(prefix \\ false) do
-    if prefix do
-      [prefix_of_set, label]
-    else
-      [prefix_of_set |> option, label]
-    end
-    |> sequence
-    |> clean
-    |> (fn p -> map({p, fn
-      [prefix, label] -> AST.set(prefix <> label, label)
-      [label] -> AST.set(label, label)
-    end}) end).()
-  end
-  def element(prefix \\ false) do
-    if prefix do
-      [prefix_of_element, label]
-    else
-      [prefix_of_element |> option, label]
-    end
-    |> sequence
-    |> clean
-    |> (fn p -> map({p, fn
-      [prefix, label] -> AST.element(prefix <> label, label)
-      [label] -> AST.element(label, label)
-    end}) end).()
-  end
-  def opt_not(p) do
-    [not_token |> option, p]
-    |> sequence
-    |> clean
-    |> (fn p -> map({p, fn
-      [token, target] -> AST.not_node(token, target)
-      [target] -> target
-    end}) end).()
-  end
-  def inline_comment, do: [wss, prefix_of_inline_comment, utf_characters, newline] |> sequence
-  def comment, do: [prefix_of_comment, utf_characters, newline] |> sequence
 
-  def statements, do: statement |> many
-  def statement do
+  parser :homonymous_set do
+    [wss, prefix_of_set, [ws, newline] |> choice |> ignore]
+    |> sequence
+    |> map(fn _ -> true end)
+    |> default(false)
+  end
+
+  parser :homonymous_element do
+    [wss, prefix_of_element, [ws, newline] |> choice |> ignore]
+    |> sequence
+    |> map(fn _ -> true end)
+    |> default(false)
+  end
+
+  def set(prefix \\ false) do
+    parser_body do
+      if prefix do
+        [prefix_of_set, label]
+      else
+        [prefix_of_set |> option, label]
+      end
+      |> sequence
+      |> clean
+      |> map(fn
+        [_prefix, label] -> AST.set(label)
+        [label] -> AST.set(label)
+      end)
+    end
+  end
+
+  def element(prefix \\ false) do
+    parser_body do
+      if prefix do
+        [prefix_of_element, label]
+      else
+        [prefix_of_element |> option, label]
+      end
+      |> sequence
+      |> clean
+      |> map(fn
+        [_prefix, label] -> AST.element(label)
+        [label] -> AST.element(label)
+      end)
+    end
+  end
+
+  parser :opt_not, [p] do
+    [not_token |> option, dump(wss), p]
+    |> sequence
+    |> clean
+    |> map(fn
+      [_token, target] -> AST.expression(:not, target)
+      [target] -> target
+    end)
+  end
+
+  parser :inline_comment do
+    [wss,
+     [prefix_of_inline_comment, utf_characters] |> sequence |> option,
+     newline]
+    |> sequence
+    |> dump
+  end
+
+  parser :comment do
+    [wss_newline,
+     [prefix_of_comment, option(utf_characters), wss_newline] |> sequence]
+    |> choice
+    |> dump
+  end
+
+  parser :desel, do: [statements, eof] |> sequence |> pick(0)
+
+  parser :statements do
     [definition_of_set,
      definition_of_element,
      definition_of_sets,
      definition_of_elements,
-     comment] |> choice
+     dump(comment)]
+    |> choice
+    |> many
+    |> flat_once
   end
 
-  def set_item(prefix \\ false) do
-    [[opt_not(element(prefix)), homonymous_set] |> sequence,
-     opt_not(expression)]
-    |> choice
+  parser :with_homonymous, [target, homonymous] do
+    [target, homonymous]
+    |> sequence
+    |> map(fn [target, homonymous] ->
+      if homonymous == true do
+        AST.with_homonymous(target)
+      else
+        target
+      end
+    end)
+  end
+
+  def set_item(prefix \\ false, expression) do
+    parser_body do
+      [with_homonymous(opt_not(element(prefix)), homonymous_set),
+       expression]
+      |> choice
+    end
   end
 
   def element_item(prefix \\ false) do
-    opt_not(set(true))
+    parser_body do
+      opt_not(set(prefix))
+    end
   end
 
-  def definition_of_set do
+  parser :definition_of_set do
+    items = [wss1, set_item(expression)] |> sequence |> pick(1) |> many
     [set(true),
      homonymous_element,
-     option(set_item),
-     [wss1, set_item] |> sequence |> many,
-     inline_comment,
-     [comment, [prefix_of_set, [wss1, set_item] |> sequence |> many, inline_comment] |> sequence]
-     |> choice]
+     items,
+     dump(inline_comment),
+     additional_definition(prefix_of_set, set_item(expression))]
     |> sequence
+    |> clean
+    |> map(fn [set, homonymous, items, lines] ->
+      items = items ++ lines
+      items = if homonymous, do: [AST.element(set.label) | items], else: items
+      AST.set_definition(set, items)
+    end)
   end
 
-  def definition_of_element do
+  parser :definition_of_element do
     [element(true),
      homonymous_set,
-     option(set),
-     [wss1, element_item] |> sequence |> many,
+     [wss1, element_item] |> sequence |> pick(1) |> many,
      inline_comment,
-     [comment, [prefix_of_element, [wss1, element_item] |> sequence |> many, inline_comment] |> sequence]
-     |> choice]
+     additional_definition(prefix_of_element, element_item)]
     |> sequence
+    |> clean
+    |> map(fn [element, homonymous, items, lines] ->
+      items = items ++ lines
+      items = if homonymous, do: [AST.set(element.label) | items], else: items
+      AST.element_definition(element, items)
+    end)
   end
 
-  def definition_of_sets do
-    [times({prefix_of_set, 2}),
-     [wss1, set, homonymous_element, option(set_item(true)), [wss1, set_item(true)] |> sequence |> many]
-     |> sequence |> many,
+  parser :additional_definition, [prefix, item] do
+    line = [prefix, [wss1, item] |> sequence |> pick(1) |> many, inline_comment]
+           |> sequence
+           |> pick(1)
+    [line, comment]
+    |> choice
+    |> many
+    |> clean
+    |> flat_once
+  end
+
+  parser :definition_of_sets do
+    items = [wss1, set_item(opt_not(wrapped_expression))] |> sequence |> pick(1) |> many
+    sets = [wss1, with_homonymous(set(true), homonymous_element), items]
+           |> sequence
+           |> map(fn [_, set, items] ->
+             {set, items} = case set do
+               %AST.WithHomonymous{target: set} ->
+                 {set, [AST.element(set.label) | items]}
+               _ -> {set, items}
+             end
+             AST.set_definition(set, items)
+           end)
+           |> many
+    [times(prefix_of_set, 2),
+     sets,
      inline_comment]
     |> sequence
+    |> pick(1)
   end
 
-  def definition_of_elements do
-    [times({prefix_of_element, 2}),
-     [wss1, element, homonymous_set, option(element_item(true)), [wss1, element_item(true)] |> sequence |> many]
-     |> sequence |> many,
+  parser :definition_of_elements do
+    items = [wss1, element_item] |> sequence |> pick(1) |> many
+    elements = [wss1, with_homonymous(element(true), homonymous_set), items]
+           |> sequence
+           |> map(fn [_, element, items] ->
+             {element, items} = case element do
+               %AST.WithHomonymous{target: element} ->
+                 {element, [AST.set(element.label) | items]}
+               _ -> {element, items}
+             end
+             AST.element_definition(element, items)
+           end)
+           |> many
+    [times(prefix_of_element, 2),
+     elements,
      inline_comment]
     |> sequence
+    |> pick(1)
   end
 
-  def expression do
-    [wrapped_expression,
-     [expression_a, [choice([minus_token, wss1]), expression_a] |> sequence |> many]
-     |> sequence]
+  parser :expression do
+    expression_operator(:minus, minus_token, expression_and)
+  end
+
+  parser :expression_and do
+    expression_operator(:and, and_token, expression3)
+  end
+
+  parser :expression3 do
+    [opt_not(set(true)), opt_not(wrapped_expression)]
     |> choice
   end
 
-  def expression_a do
-    [wrapped_expression,
-     [expression_b, [and_token, expression_b] |> sequence |> many]
-     |> sequence]
-    |> choice
-  end
-
-  def expression_b do
-    [wrapped_expression, opt_not(set(true))]
-    |> choice
-  end
-
-  def wrapped_expression do
-    [char("("), wss, expression, wss, char(")")]
+  parser :wrapped_expression do
+    [begin_token, wss, expression_or , wss, end_token]
     |> sequence
+    |> pick(2)
+  end
+
+  parser :expression_or do
+    expression_operator(:or, wss1, expression)
+  end
+
+  parser :expression_operator, [operator, operator_parser, operand] do
+    right = [operator_parser, operand]
+            |> sequence
+            |> pick(1)
+            |> many
+    [operand, right]
+    |> sequence
+    |> map(fn [left, right] ->
+      case right do
+        [] -> left
+        right -> AST.expression(operator, [left | right])
+      end
+    end)
   end
 end

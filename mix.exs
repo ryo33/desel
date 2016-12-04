@@ -28,6 +28,6 @@ defmodule Desel.Mixfile do
   #
   # Type "mix help deps" for more examples and options
   defp deps do
-    [{:parselix, "~> 0.1.0"}]
+    [{:parselix, "~> 0.5.0"}]
   end
 end

@@ -1,1 +1,1 @@
-%{"parselix": {:hex, :parselix, "0.1.0", "33fe22f30f3bb617b1e0a9ab89234313bff3f8056f2d9971b19c03f459e63765", [:mix], []}}
+%{"parselix": {:hex, :parselix, "0.5.0", "8ce4bf91d1982ea2f1891eded36a65680a39d9e386b2f9e84f925942b43e89c3", [:mix], []}}
