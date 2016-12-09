@@ -11,6 +11,10 @@ defmodule Desel.Parser do
     desel |> parse(target, position)
   end
 
+  def parse_expression(target) do
+    expression |> parse(target, position)
+  end
+
   parser :begin_token, do: [wss, char("("), wss] |> sequence |> concat
   parser :end_token, do: [wss, char(")")] |> sequence |> concat
   parser :not_token, do: [wss, char("!"), wss] |> sequence |> concat
@@ -116,17 +120,27 @@ defmodule Desel.Parser do
     |> dump
   end
 
-  parser :desel, do: [statements, eof] |> sequence |> pick(0)
+  parser :desel do
+    fn target, position ->
+      statements = statement
+                   |> many
+                   |> flat_once
+      case statements.(target, position) do
+        {:ok, _, "", _} = result ->
+          result
+        {:ok, _, remainder, position} ->
+          statement().(remainder, position)
+      end
+    end
+  end
 
-  parser :statements do
+  parser :statement do
     [definition_of_set,
      definition_of_element,
      definition_of_sets,
      definition_of_elements,
      dump(comment)]
     |> choice
-    |> many
-    |> flat_once
   end
 
   parser :with_homonymous, [target, homonymous] do
