@@ -112,6 +112,40 @@ defmodule DeselTest.Data do
     %"C" -> %"D" -> %"E" -> %"C"
     """}
   end
+
+  test "set_caches" do
+    {:ok, ast, _, _} = """
+    %A a d
+    %B b c e
+    %C b c e f
+    %D a c e f g
+    %E c f g
+
+    %"D-B-A" %D - %B - %A
+    %"B&C&D" %B & %C & %D
+    """ |> Desel.Parser.parse
+    data = Data.from_ast(ast)
+    {:ok, data, mapset} = Data.elements_by(data, data.sets["D-B-A"] |> Enum.at(0))
+    assert_mapset mapset, ["f", "g"]
+    assert data.set_caches == %{
+      "A" => MapSet.new(["a", "d"]),
+      "B" => MapSet.new(["b", "c", "e"]),
+      "D" => MapSet.new(["a", "c", "e", "f", "g"])
+    }
+    {:ok, data, mapset} = Data.elements_by(data, data.sets["B&C&D"] |> Enum.at(0))
+    assert_mapset mapset, ["c", "e"]
+    assert data.set_caches == %{
+      "A" => MapSet.new(["a", "d"]),
+      "B" => MapSet.new(["b", "c", "e"]),
+      "C" => MapSet.new(["b", "c", "e", "f"]),
+      "D" => MapSet.new(["a", "c", "e", "f", "g"])
+    }
+    data2 = %{data | set_caches: data.set_caches |> Map.put("E", MapSet.new(["x", "y", "z"]))}
+    {:ok, _data, mapset} = Data.elements_by(data2, AST.set("E"))
+    assert_mapset mapset, ["x", "y", "z"]
+    {:ok, _data, mapset} = Data.elements_by(data, AST.set("E"))
+    assert_mapset mapset, ["c", "f", "g"]
+  end
 end
 
 

@@ -83,18 +83,17 @@ defmodule Desel.CLI do
         #{spaces}^ #{message}
         """
     end
-    {data, elements} = case Data.elements_by(data, expression) do
+    {_data, elements} = case Data.elements_by(data, expression) do
       {:ok, data, elements} -> {data, elements}
-      {:error, data, message} ->
-        panic """
-        #{message}
-        """
+      {:error, _data, message} ->
+        panic message
     end
     Enum.each(elements, &IO.puts(&1))
   end
 
   defp panic(message) do
-    IO.write(:stderr, "desel: #{message}")
+    message = String.trim_trailing(message, "\n")
+    IO.puts(:stderr, "desel: #{message}")
     System.halt(1)
   end
 end

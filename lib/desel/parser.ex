@@ -15,38 +15,44 @@ defmodule Desel.Parser do
     expression |> parse(target, position)
   end
 
-  parser :begin_token, do: [wss, char("("), wss] |> sequence |> concat
-  parser :end_token, do: [wss, char(")")] |> sequence |> concat
-  parser :not_token, do: [wss, char("!"), wss] |> sequence |> concat
-  parser :minus_token, do: [wss, char("-"), wss] |> sequence |> concat
-  parser :and_token, do: [wss, char("&"), wss] |> sequence |> concat
-  parser :prefix_of_set, do: char("%")
-  parser :prefix_of_element, do: char("@")
+  def expect(parser, suggest \\ nil) do
+    parser
+    |> error_message("""
+    unexpected token#{if suggest, do: "\nsuggestion: #{suggest}"}
+    """)
+  end
+
+  parser :begin_token, do: [wss, char("("), wss] |> sequence |> concat |> expect("(")
+  parser :end_token, do: [wss, char(")")] |> sequence |> concat |> expect(")")
+  parser :not_token, do: [wss, char("!"), wss] |> sequence |> concat |> expect("!")
+  parser :minus_token, do: [wss, char("-"), wss] |> sequence |> concat |> expect("-")
+  parser :and_token, do: [wss, char("&"), wss] |> sequence |> concat |> expect("&")
+  parser :prefix_of_set, do: char("%") |> expect("%")
+  parser :prefix_of_element, do: char("@") |> expect("@")
   parser :prefix_of_inline_comment, do: char("#")
-  parser :prefix_of_comment, do: not_char("%@" <> @newline_characters)
+  parser :prefix_of_comment, do: not_char("%@" <> @newline_characters) |> expect()
   parser :ws, do: char(@whitespace_characters)
   parser :not_ws, do: not_char(@whitespace_characters)
   parser :wss, do: ws |> many |> concat
   parser :not_wss, do: not_ws |> many |> concat
-  parser :wss1, do: ws |> many_1 |> concat
-  parser :not_wss1, do: not_ws |> many_1 |> concat
-  parser :option_not_wss, do: not_wss |> option
-  parser :option_not_wss1, do: not_wss1 |> option
-  parser :newline, do: char(@newline_characters)
+  parser :wss1, do: ws |> many_1 |> concat |> expect("whitespaces")
+  parser :not_wss1, do: not_ws |> many_1 |> concat |> expect()
+  parser :newline, do: char(@newline_characters) |> expect()
   parser :not_newline, do: not_char(@newline_characters)
-  parser :wss_newline, do: [wss, newline] |> sequence
+  parser :wss_newline, do: [wss, newline] |> sequence |> expect("newline")
   parser :label_character, do: not_char(~s/!-&%@()#"'/ <> @whitespace_characters <> @newline_characters)
   parser :label_characters, do: label_character |> many_1 |> concat
-  parser :utf_characters, do: not_newline |> many_1 |> concat
-  parser :double_quote_characters, do: not_char(~s(") <> @newline_characters) |> many_1 |> concat
-  parser :single_quote_characters, do: not_char(~s(') <> @newline_characters) |> many_1 |> concat
-  parser :label, do: [label_characters, wrapped_label] |> choice
+  parser :utf_characters, do: not_newline |> many_1 |> concat |> expect("utf characters")
+  parser :double_quote_characters, do: not_char(~s(") <> @newline_characters) |> many_1 |> concat |> expect()
+  parser :single_quote_characters, do: not_char(~s(') <> @newline_characters) |> many_1 |> concat |> expect()
+  parser :label, do: [label_characters, wrapped_label] |> choice |> expect("label")
 
   parser :wrapped_label do
     [[char(~s(")), double_quote_characters, char(~s("))] |> sequence,
      [char(~s(')), single_quote_characters, char(~s('))] |> sequence]
     |> choice
     |> pick(1)
+    |> expect("label")
   end
 
   parser :homonymous_set do
@@ -54,6 +60,7 @@ defmodule Desel.Parser do
     |> sequence
     |> map(fn _ -> true end)
     |> default(false)
+    |> expect("homonymous set")
   end
 
   parser :homonymous_element do
@@ -61,6 +68,7 @@ defmodule Desel.Parser do
     |> sequence
     |> map(fn _ -> true end)
     |> default(false)
+    |> expect("homonymous element")
   end
 
   def set(prefix \\ false) do
@@ -76,6 +84,7 @@ defmodule Desel.Parser do
         [_prefix, label] -> AST.set(label)
         [label] -> AST.set(label)
       end)
+      |> expect("#{if prefix, do: "%"}set")
     end
   end
 
@@ -92,6 +101,7 @@ defmodule Desel.Parser do
         [_prefix, label] -> AST.element(label)
         [label] -> AST.element(label)
       end)
+      |> expect("#{if prefix, do: "@"}element")
     end
   end
 
@@ -106,8 +116,7 @@ defmodule Desel.Parser do
   end
 
   parser :inline_comment do
-    [wss,
-     [prefix_of_inline_comment, utf_characters] |> sequence |> option,
+    [[prefix_of_inline_comment, utf_characters] |> sequence |> option,
      newline]
     |> sequence
     |> dump
@@ -118,6 +127,7 @@ defmodule Desel.Parser do
      [prefix_of_comment, option(utf_characters), wss_newline] |> sequence]
     |> choice
     |> dump
+    |> expect("comment")
   end
 
   parser :desel do
@@ -174,8 +184,9 @@ defmodule Desel.Parser do
     [set(true),
      homonymous_element,
      items,
-     dump(inline_comment),
-     additional_definition(prefix_of_set, set_item(expression))]
+     dump(wss),
+     dump(inline_comment) |> expect("element or expression"),
+     additional_definition(prefix_of_set, set_item(expression), "element or expression")]
     |> sequence
     |> clean
     |> map(fn [set, homonymous, items, lines] ->
@@ -186,11 +197,13 @@ defmodule Desel.Parser do
   end
 
   parser :definition_of_element do
+    items = [wss1, element_item] |> sequence |> pick(1) |> many
     [element(true),
      homonymous_set,
-     [wss1, element_item] |> sequence |> pick(1) |> many,
-     inline_comment,
-     additional_definition(prefix_of_element, element_item)]
+     items,
+     dump(wss),
+     dump(inline_comment) |> expect("set"),
+     additional_definition(prefix_of_element, element_item, "set")]
     |> sequence
     |> clean
     |> map(fn [element, homonymous, items, lines] ->
@@ -200,8 +213,11 @@ defmodule Desel.Parser do
     end)
   end
 
-  parser :additional_definition, [prefix, item] do
-    line = [prefix, [wss1, item] |> sequence |> pick(1) |> many, inline_comment]
+  parser :additional_definition, [prefix, item, item_name] do
+    line = [prefix,
+            [wss1, item] |> sequence |> pick(1) |> many,
+            dump(wss),
+            inline_comment |> expect(item_name)]
            |> sequence
            |> pick(1)
     [line, comment]
@@ -226,7 +242,8 @@ defmodule Desel.Parser do
            |> many
     [times(prefix_of_set, 2),
      sets,
-     inline_comment]
+     dump(wss),
+     inline_comment |> expect("%set")]
     |> sequence
     |> pick(1)
   end
@@ -246,7 +263,8 @@ defmodule Desel.Parser do
            |> many
     [times(prefix_of_element, 2),
      elements,
-     inline_comment]
+     dump(wss),
+     inline_comment |> expect("@element")]
     |> sequence
     |> pick(1)
   end

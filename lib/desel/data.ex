@@ -76,16 +76,16 @@ defmodule Desel.Data do
     elements_by(data, ast, [])
   end
 
-  defp elements_by(data, elements \\ MapSet.new(), ast, visited)
+  defp elements_by(data, ast, visited)
 
   # By an element
-  defp elements_by(data, elements, %AST.Element{label: element}, _visited) do
-    elements = MapSet.put(elements, element)
+  defp elements_by(data, %AST.Element{label: element}, _visited) do
+    elements = MapSet.new([element])
     {:ok, data, elements}
   end
 
   # By a set
-  defp elements_by(data, elements, %AST.Set{label: set}, visited) do
+  defp elements_by(data, %AST.Set{label: set}, visited) do
     if set in visited do
       cyclic = Enum.reverse(visited)
                |> Enum.drop_while(&(&1 != set))
@@ -97,14 +97,13 @@ defmodule Desel.Data do
       """
       {:error, data, message}
     else
-      if Map.has_key?(data.set_caches, set) do
-        elements = Map.get(data.set_caches, set)
-        {:ok, data, elements}
-      else
-        case Map.fetch(data.sets, set) do
+      case Map.fetch(data.set_caches, set) do
+        {:ok, elements} ->
+          {:ok, data, elements}
+        :error -> case Map.fetch(data.sets, set) do
           {:ok, items} ->
             visited = [set | visited]
-            result = elements_by_set(data, elements, items, visited, MapSet.new())
+            result = elements_by_set(data, items, visited, MapSet.new())
             with {:ok, data, elements, minus} <- result do
               elements = MapSet.difference(elements, minus)
               data = %__MODULE__{data | set_caches: Map.put(data.set_caches, set, elements)}
@@ -115,49 +114,41 @@ defmodule Desel.Data do
             %"#{set}" does not exist.
             """
             {:error, data, message}
-        end
+          end
       end
     end
   end
 
   # By an expression
-  defp elements_by(data, elements, %AST.Expression{operator: :not, operand: ast}, visited) do
-    with {:ok, data, evaluated} <- elements_by(data, elements, ast, visited) do
+  defp elements_by(data, %AST.Expression{operator: :not, operand: ast}, visited) do
+    with {:ok, data, evaluated} <- elements_by(data, ast, visited) do
       elements = MapSet.difference(data.elements, evaluated)
-                 |> MapSet.union(elements)
       {:ok, data, elements}
     end
   end
 
-  defp elements_by(data, elements, %AST.Expression{operator: operator, operand: operands}, visited) do
-    with {:ok, data, evaluated} <- elements_by_expression(data, operator, operands, visited) do
-      elements = MapSet.union(elements, evaluated)
+  defp elements_by(data, %AST.Expression{operator: operator, operand: operands}, visited) do
+    with {:ok, data, elements} <- elements_by_expression(data, operator, operands, visited) do
       {:ok, data, elements}
     end
   end
 
-  defp elements_by_set(data, elements, [], _, minus), do: {:ok, data, elements, minus}
-  defp elements_by_set(data, elements, [head | tail], visited, minus) do
+  defp elements_by_set(data, [], _, minus), do: {:ok, data, MapSet.new(), minus}
+  defp elements_by_set(data, [head | tail], visited, minus) do
     case head do
       %AST.Expression{operator: :not, operand: %AST.Element{label: element}} ->
         minus = MapSet.put(minus, element)
-        elements_by_set(data, elements, tail, visited, minus)
-      ast -> with {:ok, data, elements} <- elements_by(data, elements, ast, visited) do
-        elements_by_set(data, elements, tail, visited, minus)
-      end
+        elements_by_set(data, tail, visited, minus)
+      ast ->
+        with {:ok, data, head} <- elements_by(data, ast, visited),
+             {:ok, data, tail, minus} <- elements_by_set(data, tail, visited, minus) do
+          elements = MapSet.union(head, tail)
+          {:ok, data, elements, minus}
+        end
     end
   end
 
-  defp elements_by_expression(data, :or, [], _), do: {:ok, data, MapSet.new()}
-  defp elements_by_expression(data, :or, [head | tail], visited) do
-    with {:ok, data, head} <- elements_by(data, head, visited),
-         {:ok, data, elements} <- elements_by_expression(data, :or, tail, visited) do
-      elements = MapSet.union(elements, head)
-      {:ok, data, elements}
-    end
-  end
-
-  defp elements_by_expression(data, operator, [head | tail], visited) when operator in [:and, :minus] do
+  defp elements_by_expression(data, operator, [head | tail], visited) do
     with {:ok, data, elements} <- elements_by(data, head, visited) do
       elements_by_expression(data, elements, operator, tail, visited)
     end
@@ -167,6 +158,7 @@ defmodule Desel.Data do
   defp elements_by_expression(data, elements, operator, [head | tail], visited) do
     with {:ok, data, head} <- elements_by(data, head, visited) do
       elements = case operator do
+        :or -> MapSet.union(elements, head)
         :and -> MapSet.intersection(elements, head)
         :minus -> MapSet.difference(elements, head)
       end
