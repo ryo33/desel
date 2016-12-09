@@ -148,21 +148,16 @@ defmodule Desel.Data do
     end
   end
 
-  defp elements_by_expression(data, operator, [head | tail], visited) do
-    with {:ok, data, elements} <- elements_by(data, head, visited) do
-      elements_by_expression(data, elements, operator, tail, visited)
-    end
-  end
-
-  defp elements_by_expression(data, elements, _operator, [], _), do: {:ok, data, elements}
-  defp elements_by_expression(data, elements, operator, [head | tail], visited) do
-    with {:ok, data, head} <- elements_by(data, head, visited) do
+  defp elements_by_expression(data, _, [head], visited), do: elements_by(data, head, visited)
+  defp elements_by_expression(data, operator, [last | left], visited) do
+    with {:ok, data, left} <- elements_by_expression(data, operator, left, visited),
+         {:ok, data, last} <- elements_by(data, last, visited) do
       elements = case operator do
-        :or -> MapSet.union(elements, head)
-        :and -> MapSet.intersection(elements, head)
-        :minus -> MapSet.difference(elements, head)
+        :or -> MapSet.union(left, last)
+        :and -> MapSet.intersection(left, last)
+        :minus -> MapSet.difference(left, last)
       end
-      elements_by_expression(data, elements, operator, tail, visited)
+      {:ok, data, elements}
     end
   end
 end

@@ -40,26 +40,26 @@ defmodule DeselTest.Parser do
     assert_parse(expression, target, ast)
 
     target_or = "(%A !%B %C)"
-    ast_or = AST.expression(:or, [AST.set("A"), AST.expression(:not, AST.set("B")), AST.set("C")])
+    ast_or = AST.expression(:or, [AST.set("C"), AST.expression(:not, AST.set("B")), AST.set("A")])
     assert_parse(expression, target_or, ast_or)
 
     target_minus = "! %A - %B-!%C"
-    ast_minus = AST.expression(:minus, [AST.expression(:not, AST.set("A")), AST.set("B"), AST.expression(:not, AST.set("C"))])
+    ast_minus = AST.expression(:minus, [AST.expression(:not, AST.set("C")), AST.set("B"), AST.expression(:not, AST.set("A"))])
     assert_parse(expression, target_minus, ast_minus)
 
     target_and = "! %A & %B&!%C"
-    ast_and = AST.expression(:and, [AST.expression(:not, AST.set("A")), AST.set("B"), AST.expression(:not, AST.set("C"))])
+    ast_and = AST.expression(:and, [AST.expression(:not, AST.set("C")), AST.set("B"), AST.expression(:not, AST.set("A"))])
     assert_parse(expression, target_and, ast_and)
 
     target = "(#{target_or}) & %E"
-    ast = AST.expression(:and, [ast_or, AST.set("E")])
+    ast = AST.expression(:and, [AST.set("E"), ast_or])
     assert_parse(expression, target, ast)
 
     target = "#{target_and} - %D & (#{target_minus}) - (#{target_or}) & %E"
     ast = AST.expression(:minus, [
-      ast_and,
-      AST.expression(:and, [AST.set("D"), ast_minus]),
-      AST.expression(:and, [ast_or, AST.set("E")]),
+      AST.expression(:and, [AST.set("E"), ast_or]),
+      AST.expression(:and, [ast_minus, AST.set("D")]),
+      ast_and
     ])
     assert_parse(expression, target, ast)
   end
@@ -83,7 +83,7 @@ defmodule DeselTest.Parser do
       AST.element("Specifies prefix"),
       AST.expression(:not, AST.element("This is not contained.")),
       AST.set("B"),
-      AST.expression(:minus, [AST.expression(:not, AST.set("C")), AST.set("D")]),
+      AST.expression(:minus, [AST.set("D"), AST.expression(:not, AST.set("C"))]),
       AST.set("E"),
       AST.with_homonymous(AST.element("element5"))
     ]
@@ -133,14 +133,14 @@ defmodule DeselTest.Parser do
     ]
     b = [
       AST.expression(:minus, [
-        AST.set("C"), AST.expression(:and, [
-          AST.set("D"), AST.set("E")
-        ])
+        AST.expression(:and, [
+          AST.set("E"), AST.set("D")
+        ]), AST.set("C")
       ])
     ]
     c = [
       AST.expression(:not, AST.expression(:minus, [
-        AST.set("D"), AST.set("E")
+        AST.set("E"), AST.set("D")
       ]))
     ]
     ast = [
@@ -191,7 +191,7 @@ defmodule DeselTest.Parser do
       AST.element_definition(AST.element("e"), [AST.set("B"), AST.set("C")]),
       AST.set_definition(AST.set("B"), [AST.set("A")]),
       AST.set_definition(AST.set("C"), [
-        AST.expression(:and, [AST.set("A"), AST.set("C")]),
+        AST.expression(:and, [AST.set("C"), AST.set("A")]),
         AST.set("B"),
         AST.element("x"),
         AST.element("y"),

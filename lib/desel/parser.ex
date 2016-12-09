@@ -302,7 +302,7 @@ defmodule Desel.Parser do
     |> map(fn [left, right] ->
       case right do
         [] -> left
-        right -> AST.expression(operator, [left | right])
+        right -> AST.expression(operator, Enum.reverse([left | right]))
       end
     end)
   end
