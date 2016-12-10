@@ -26,6 +26,10 @@ defmodule Desel.CLI do
     """
   end
 
+  defp response({[help: true], _, _}) do
+    IO.write(@help)
+  end
+
   defp response({opts, ["-" | expression], _}) do
     lines = IO.stream(:stdio, :line) |> Enum.to_list()
     desel = Enum.join(lines)
@@ -43,10 +47,6 @@ defmodule Desel.CLI do
         failed to read the file: #{to_string(reason)}
         """
     end
-  end
-
-  defp response({{:help, true}, _, _}) do
-    IO.write(@help)
   end
 
   defp response({_, _, _}) do
