@@ -15,7 +15,7 @@ defmodule Desel.Parser do
     expression |> parse(target, position)
   end
 
-  def expect(parser, suggest \\ nil) do
+  defp expect(parser, suggest \\ nil) do
     parser
     |> error_message("""
     unexpected token#{if suggest, do: "\nsuggestion: #{suggest}"}
