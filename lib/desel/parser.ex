@@ -229,44 +229,58 @@ defmodule Desel.Parser do
 
   parser :definition_of_sets do
     items = [wss1, set_item(opt_not(wrapped_expression))] |> sequence |> pick(1) |> many
-    sets = [wss1, with_homonymous(set(true), homonymous_element), items]
+    definition = [with_homonymous(set(true), homonymous_element), items]
+                 |> sequence
+                 |> map(fn [set, items] ->
+                   {set, items} = case set do
+                     %AST.WithHomonymous{target: set} ->
+                       {set, [AST.element(set.label) | items]}
+                     _ -> {set, items}
+                   end
+                   AST.set_definition(set, items)
+                 end)
+    tail = [wss1, definition]
            |> sequence
-           |> map(fn [_, set, items] ->
-             {set, items} = case set do
-               %AST.WithHomonymous{target: set} ->
-                 {set, [AST.element(set.label) | items]}
-               _ -> {set, items}
-             end
-             AST.set_definition(set, items)
-           end)
+           |> pick(1)
            |> many
+    sets = [definition, tail]
+           |> sequence
+           |> map(fn [head, tail] -> [head | tail] end)
     [times(prefix_of_set, 2),
+     wss1,
      sets,
-     dump(wss),
+     wss,
      inline_comment |> expect("%set")]
     |> sequence
-    |> pick(1)
+    |> pick(2)
   end
 
   parser :definition_of_elements do
     items = [wss1, element_item] |> sequence |> pick(1) |> many
-    elements = [wss1, with_homonymous(element(true), homonymous_set), items]
+    definition = [with_homonymous(element(true), homonymous_set), items]
+                 |> sequence
+                 |> map(fn [element, items] ->
+                   {element, items} = case element do
+                     %AST.WithHomonymous{target: element} ->
+                       {element, [AST.set(element.label) | items]}
+                     _ -> {element, items}
+                   end
+                   AST.element_definition(element, items)
+                 end)
+    tail = [wss1, definition]
            |> sequence
-           |> map(fn [_, element, items] ->
-             {element, items} = case element do
-               %AST.WithHomonymous{target: element} ->
-                 {element, [AST.set(element.label) | items]}
-               _ -> {element, items}
-             end
-             AST.element_definition(element, items)
-           end)
+           |> pick(1)
            |> many
+    elements = [definition, tail]
+               |> sequence
+               |> map(fn [head, tail] -> [head | tail] end)
     [times(prefix_of_element, 2),
+     wss1,
      elements,
-     dump(wss),
+     wss,
      inline_comment |> expect("@element")]
     |> sequence
-    |> pick(1)
+    |> pick(2)
   end
 
   parser :expression do
